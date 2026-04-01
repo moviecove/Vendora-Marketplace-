@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your Cart | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Paystack -->
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+</head>
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <h1>Shopping Cart</h1>
+
+    <div id="cart-list" class="mt-2"></div>
+
+    <div id="cart-summary" class="mt-2 text-center hidden"
+        style="padding: 2rem; background: white; border-radius: 8px;">
+        
+        <h2 id="total-price"></h2>
+
+        <button onclick="checkout()" class="btn btn-primary mt-2">
+            Pay Now with Paystack
+        </button>
+    </div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+let totalVal = 0;
+let currentUser;
+let cartItems = [];
+
+// ================= INIT =================
+document.addEventListener('DOMContentLoaded', async () => {
+
+    currentUser = await Vendora.getUser();
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    loadCartItems();
+});
+
+// ================= LOAD CART =================
+async function loadCartItems() {
+
+    const list = document.getElementById('cart-list');
+    list.innerHTML = `<p>Loading...</p>`;
+
+    const { data, error } = await Vendora.getCart(currentUser.id);
+
+    if (error) {
+        list.innerHTML = `<p>${error.message}</p>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        list.innerHTML = '<h3>Your cart is empty.</h3>';
+        return;
+    }
+
+    cartItems = data;
+
+    totalVal = data.reduce((acc, item) => {
+        return acc + (item.products.price * item.quantity);
+    }, 0);
+
+    list.innerHTML = data.map(item => `
+        <div class="cart-item">
+
+            <div class="cart-left">
+                <img src="${item.products.image_url}" width="70">
+
+                <div>
+                    <h4>${item.products.title}</h4>
+                    <p>${formatPrice(item.products.price)}</p>
+                </div>
+            </div>
+
+            <div class="cart-right">
+
+                <input type="number" min="1" value="${item.quantity}"
+                    onchange="updateQty('${item.id}', this.value)" />
+
+                <button onclick="removeItem('${item.id}')" class="btn btn-danger">
+                    Remove
+                </button>
+
+            </div>
+
+        </div>
+    `).join('');
+
+    document.getElementById('cart-summary').classList.remove('hidden');
+    document.getElementById('total-price').innerText =
+        'Total: ' + formatPrice(totalVal);
+}
+
+// ================= UPDATE QUANTITY =================
+async function updateQty(id, qty) {
+
+    qty = parseInt(qty);
+
+    if (qty < 1) return;
+
+    await supabaseClient
+        .from('cart')
+        .update({ quantity: qty })
+        .eq('id', id);
+
+    loadCartItems();
+}
+
+// ================= REMOVE ITEM =================
+async function removeItem(id) {
+
+    if (!confirm('Remove item from cart?')) return;
+
+    await supabaseClient
+        .from('cart')
+        .delete()
+        .eq('id', id);
+
+    loadCartItems();
+}
+
+// ================= CHECKOUT =================
+async function checkout() {
+
+    const handler = PaystackPop.setup({
+        key: PAYSTACK_PUBLIC_KEY,
+        email: currentUser.email,
+        amount: totalVal * 100,
+        currency: 'NGN',
+
+        callback: async function(res) {
+
+            alert('Payment successful!');
+
+            // 🔥 SAVE ORDER
+            const { data: order, error: orderError } = await supabaseClient
+                .from('orders')
+                .insert({
+                    user_id: currentUser.id,
+                    email: currentUser.email,
+                    amount: totalVal,
+                    reference: res.reference,
+                    status: 'success'
+                })
+                .select()
+                .single();
+
+            if (orderError) {
+                alert(orderError.message);
+                return;
+            }
+
+            // 🔥 GET CART ITEMS
+            const { data: cartItems } = await supabaseClient
+                .from('cart')
+                .select('products(*)')
+                .eq('user_id', currentUser.id);
+
+            // 🔥 SAVE ORDER ITEMS
+            for (let item of cartItems) {
+                await supabaseClient
+                    .from('order_items')
+                    .insert({
+                        order_id: order.id,
+                        product_id: item.products.id,
+                        seller_id: item.products.seller_id,
+                        price: item.products.price
+                    });
+            }
+
+            // 🔥 CLEAR CART
+            await supabaseClient
+                .from('cart')
+                .delete()
+                .eq('user_id', currentUser.id);
+
+            window.location.href = 'orders.html';
+        }
+    });
+
+    handler.openIframe();
+}
+
+</script>
+
+</body>
+</html>

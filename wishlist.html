@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Wishlist | Vendora</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <h1>My Wishlist</h1>
+
+    <div id="wishlist-grid" class="product-grid"></div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+let currentUser;
+
+// ================= INIT =================
+document.addEventListener('DOMContentLoaded', async () => {
+
+    currentUser = await Vendora.getUser();
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    loadWishlist();
+});
+
+// ================= LOAD =================
+async function loadWishlist() {
+
+    const { data, error } = await supabaseClient
+        .from('wishlist')
+        .select(`
+            id,
+            products (
+                id,
+                title,
+                price,
+                image_url
+            )
+        `)
+        .eq('user_id', currentUser.id);
+
+    const grid = document.getElementById('wishlist-grid');
+
+    if (error) {
+        grid.innerHTML = `<p>${error.message}</p>`;
+        return;
+    }
+
+    if (!data.length) {
+        grid.innerHTML = `<h3>Your wishlist is empty ❤️</h3>`;
+        return;
+    }
+
+    grid.innerHTML = data.map(item => `
+        <div class="product-card">
+
+            <img src="${item.products.image_url}" />
+
+            <div class="product-info">
+                <h3>${item.products.title}</h3>
+                <p>₦${item.products.price}</p>
+            </div>
+
+            <div class="product-actions">
+
+                <button onclick="addToCart('${item.products.id}')"
+                    class="btn btn-primary">
+                    Add to Cart
+                </button>
+
+                <button onclick="removeFromWishlist('${item.id}')"
+                    class="btn btn-danger">
+                    Remove
+                </button>
+
+            </div>
+
+        </div>
+    `).join('');
+}
+
+// ================= REMOVE =================
+async function removeFromWishlist(id) {
+
+    const { error } = await supabaseClient
+        .from('wishlist')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        alert(error.message);
+    } else {
+        loadWishlist();
+    }
+}
+
+// ================= ADD TO CART =================
+async function addToCart(productId) {
+
+    const { error } = await supabaseClient
+        .from('cart')
+        .insert({
+            user_id: currentUser.id,
+            product_id: productId,
+            quantity: 1
+        });
+
+    if (error) alert(error.message);
+    else alert('Moved to cart 🛒');
+}
+</script>
+
+</body>
+</html>

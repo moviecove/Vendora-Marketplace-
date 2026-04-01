@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendora | Modern Marketplace</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">
+    <img src="images/logo.png" alt="Vendora Logo">
+</a>
+
+        
+
+            <input type="text" id="searchInput" placeholder="Search products..." />
+
+            <div id="auth-links">
+                <a href="login.html" class="btn-primary">Login</a>
+                <a href="signup.html" class="btn-primary">Sign Up</a>
+            </div>
+
+            <div id="user-links" class="hidden">
+                <a href="cart.html">Cart</a>
+                <a href="wishlist.html">Wishlist</a>
+                <a href="messages.html">Messages</a>
+                <a href="profile.html">Profile</a>
+
+                <a href="seller-dashboard.html" id="seller-dashboard-link" class="hidden">
+                    Dashboard
+                </a>
+
+                <a href="become-seller.html" id="becomeSellerLink">
+                    Become Seller
+                </a>
+
+                <a href="#" onclick="handleLogout()">Logout</a>
+            </div>
+        </div>
+    </nav>
+</header>
+
+<main>
+
+    <!-- HERO (UNCHANGED) -->
+    <section class="hero" style="text-align: center; padding: 4rem 0; background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'); background-size: cover; color: white; border-radius: 15px;">
+        <h1 style="font-size: 3rem;">Buy & Sell Everything</h1>
+        <p>The safest and fastest way to trade with people around you.</p>
+    </section>
+
+    <h2 class="mt-2">Featured Products</h2>
+
+    <div id="product-grid" class="product-grid"></div>
+
+</main>
+
+<footer>
+    <div class="footer-content">
+        <div class="footer-section">
+            <h4>Vendora</h4>
+            <p>Modern marketplace for everyone.</p>
+        </div>
+
+        <div class="footer-section">
+            <h4>Quick Links</h4>
+            <ul>
+                <li><a href="#">About Us</a></li>
+                <li><a href="#">Contact</a></li>
+                <li><a href="become-seller.html">Become Seller</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="text-center" style="margin-top: 2rem; border-top: 1px solid #444; padding-top: 2rem;">
+        &copy; 2026 Vendora Inc.
+    </div>
+</footer>
+
+<script src="supabase.js"></script>
+
+<script>
+const grid = document.getElementById('product-grid');
+const searchInput = document.getElementById('searchInput');
+
+let allProducts = [];
+let currentUser = null;
+
+// ================= INIT =================
+document.addEventListener('DOMContentLoaded', async () => {
+
+    currentUser = await Vendora.getUser();
+
+    toggleAuthUI(currentUser);
+
+    loadProducts();
+});
+
+// ================= LOAD PRODUCTS =================
+async function loadProducts() {
+
+    grid.innerHTML = `<p>Loading products...</p>`;
+
+    const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        grid.innerHTML = `<p>${error.message}</p>`;
+        return;
+    }
+
+    allProducts = data;
+    renderProducts(data);
+}
+
+// ================= RENDER =================
+function renderProducts(products) {
+
+    if (!products.length) {
+        grid.innerHTML = `<p>No products found</p>`;
+        return;
+    }
+
+    grid.innerHTML = products.map(product => `
+        <div class="product-card">
+
+            <img src="${product.image_url}" />
+
+            <div class="product-info">
+                <h3>${product.title}</h3>
+                <p>₦${product.price}</p>
+            </div>
+
+            <div class="product-actions">
+
+                <button onclick="addToCart('${product.id}')"
+                    class="btn btn-primary">
+                    Add to Cart
+                </button>
+
+                <button onclick="addToWishlist('${product.id}')"
+                    class="btn btn-secondary">
+                    ❤️
+                </button>
+
+            </div>
+
+        </div>
+    `).join('');
+}
+
+// ================= SEARCH =================
+searchInput.addEventListener('input', () => {
+
+    const val = searchInput.value.toLowerCase();
+
+    const filtered = allProducts.filter(p =>
+        p.title.toLowerCase().includes(val)
+    );
+
+    renderProducts(filtered);
+});
+
+// ================= ADD TO CART =================
+async function addToCart(productId) {
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('cart')
+        .insert({
+            user_id: currentUser.id,
+            product_id: productId,
+            quantity: 1
+        });
+
+    if (error) alert(error.message);
+    else alert('Added to cart 🛒');
+}
+
+// ================= WISHLIST =================
+async function addToWishlist(productId) {
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('wishlist')
+        .insert({
+            user_id: currentUser.id,
+            product_id: productId
+        });
+
+    if (error) alert('Already in wishlist');
+    else alert('Added to wishlist ❤️');
+}
+
+// ================= AUTH UI =================
+async function toggleAuthUI(user) {
+
+    const authLinks = document.getElementById('auth-links');
+    const userLinks = document.getElementById('user-links');
+
+    if (user) {
+        authLinks.classList.add('hidden');
+        userLinks.classList.remove('hidden');
+
+        const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+        if (profile?.role === 'seller' && profile?.verified) {
+            document.getElementById('seller-dashboard-link').classList.remove('hidden');
+            document.getElementById('becomeSellerLink').style.display = 'none';
+        }
+
+    } else {
+        authLinks.classList.remove('hidden');
+        userLinks.classList.add('hidden');
+    }
+}
+
+// ================= LOGOUT =================
+function handleLogout() {
+    Vendora.logout();
+    location.reload();
+}
+</script>
+
+</body>
+</html>

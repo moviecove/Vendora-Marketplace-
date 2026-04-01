@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Orders | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <h1>My Orders</h1>
+    <div id="orders-list"></div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+let currentUser;
+
+document.addEventListener('DOMContentLoaded', async () => {
+
+    currentUser = await Vendora.getUser();
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    loadOrders();
+});
+
+async function loadOrders() {
+
+    const { data, error } = await supabaseClient
+        .from('orders')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+    const container = document.getElementById('orders-list');
+
+    if (!data.length) {
+        container.innerHTML = `<p>No orders yet</p>`;
+        return;
+    }
+
+    container.innerHTML = data.map(order => `
+        <div style="background:white;padding:1rem;margin-bottom:1rem;border-radius:8px;">
+            <h3>₦${order.amount}</h3>
+            <p>Status: ${order.status}</p>
+            <small>${new Date(order.created_at).toLocaleString()}</small>
+        </div>
+    `).join('');
+}
+</script>
+
+</body>
+</html>

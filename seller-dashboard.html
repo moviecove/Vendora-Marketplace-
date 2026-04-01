@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Seller Dashboard | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main class="dashboard-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <ul class="sidebar-nav">
+            <li><a href="seller-dashboard.html" class="active">Dashboard</a></li>
+            <li><a href="add-product.html">Add Product</a></li>
+            <li><a href="my-products.html">My Products</a></li>
+        </ul>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <section>
+        <h1 id="welcomeText">Loading...</h1>
+
+        <div class="dashboard-cards">
+            <div class="card card-body text-center">
+                <h3 id="salesCount">0</h3>
+                <p>Total Sales</p>
+            </div>
+<h2>Total Earnings: <span id="earnings">₦0</span></h2>
+            <div class="card card-body text-center">
+                <h3 id="productCount">0</h3>
+                <p>Total Products</p>
+            </div>
+
+            <div class="card card-body text-center">
+                <h3 id="pendingOrders">0</h3>
+                <p>Pending Orders</p>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+// ==============================
+// INIT
+// ==============================
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Vendora.getUser();
+
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // ==============================
+    // CHECK IF VERIFIED SELLER
+    // ==============================
+    const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+    if (!profile || profile.role !== 'seller' || !profile.verified) {
+        document.body.innerHTML = `
+            <div class="auth-form text-center">
+                <h2>Access Denied</h2>
+                <p>You must be an approved seller to access this page.</p>
+                <a href="become-seller.html" class="btn btn-primary">
+                    Become a Seller
+                </a>
+            </div>
+        `;
+        return;
+    }
+
+    // ==============================
+    // WELCOME TEXT
+    // ==============================
+    document.getElementById('welcomeText').innerText =
+        `Welcome, ${profile.full_name || 'Seller'} 👋`;
+
+    // ==============================
+    // LOAD DASHBOARD DATA
+    // ==============================
+    loadStats(user.id);
+});
+
+// ==============================
+// LOAD STATS
+// ==============================
+async function loadStats(userId) {
+
+    // Total products
+    const { count: products } = await supabaseClient
+        .from('products')
+        .select('*', { count: 'exact', head: true })
+        .eq('seller_id', userId);
+
+    document.getElementById('productCount').innerText = products || 0;
+
+    // Total sales (completed orders)
+    const { count: sales } = await supabaseClient
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .eq('user_id', userId);
+
+    document.getElementById('salesCount').innerText = sales || 0;
+
+    // Pending orders
+    const { count: pending } = await supabaseClient
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('user_id', userId);
+
+    document.getElementById('pendingOrders').innerText = pending || 0;
+}
+
+async function loadEarnings() {
+
+    const user = await Vendora.getUser();
+
+    const { data, error } = await supabaseClient
+        .from('order_items')
+        .select('*')
+        .eq('seller_id', user.id);
+
+    if (error) return;
+
+    const total = data.reduce((sum, item) => sum + item.price, 0);
+
+    document.getElementById('earnings').innerText = "₦" + total;
+}
+
+loadEarnings();
+</script>
+
+</body>
+</html>

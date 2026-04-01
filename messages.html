@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages | Vendora</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <h1>Messages</h1>
+
+    <div class="chat-container">
+
+        <div id="chat-box" class="chat-box">
+            <p>Select a user to start chatting</p>
+        </div>
+
+        <div class="chat-input">
+            <input type="text" id="msg-input" placeholder="Type a message...">
+            <button onclick="sendMessage()" class="btn btn-primary">Send</button>
+        </div>
+
+    </div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+let currentUser;
+let receiverId;
+
+document.addEventListener('DOMContentLoaded', async () => {
+
+    currentUser = await Vendora.getUser();
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    receiverId = params.get('to');
+
+    if (receiverId) {
+        loadMessages();
+        subscribeToMessages();
+    }
+});
+
+// ================= LOAD =================
+async function loadMessages() {
+
+    const { data } = await supabaseClient
+        .from('messages')
+        .select('*')
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
+        .order('created_at', { ascending: true });
+
+    const box = document.getElementById('chat-box');
+
+    const filtered = data.filter(m =>
+        (m.sender_id === currentUser.id && m.receiver_id === receiverId) ||
+        (m.sender_id === receiverId && m.receiver_id === currentUser.id)
+    );
+
+    if (!filtered.length) {
+        box.innerHTML = `<p>No messages yet</p>`;
+        return;
+    }
+
+    box.innerHTML = filtered.map(m => `
+        <div class="msg ${m.sender_id === currentUser.id ? 'me' : 'them'}">
+            ${m.content}
+        </div>
+    `).join('');
+
+    box.scrollTop = box.scrollHeight;
+}
+
+// ================= SEND =================
+async function sendMessage() {
+
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    if (!receiverId) {
+        alert('No recipient selected');
+        return;
+    }
+
+    await supabaseClient
+        .from('messages')
+        .insert({
+            sender_id: currentUser.id,
+            receiver_id: receiverId,
+            content: text
+        });
+
+    input.value = '';
+}
+
+// ================= REALTIME =================
+function subscribeToMessages() {
+
+    supabaseClient
+        .channel('chat')
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'messages'
+            },
+            () => loadMessages()
+        )
+        .subscribe();
+}
+</script>
+
+</body>
+</html>

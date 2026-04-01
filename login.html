@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <div class="auth-form">
+        <h2>Welcome Back</h2>
+
+        <div id="msg"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="email" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" required>
+            </div>
+
+            <button id="loginBtn" type="submit" class="btn btn-primary btn-full">
+                Login
+            </button>
+        </form>
+
+        <p class="text-center" style="margin-top: 1.5rem;">
+            Don't have an account? <a href="signup.html">Sign Up</a>
+        </p>
+    </div>
+</main>
+
+<!-- Scripts -->
+<script src="supabase.js"></script>
+
+<script>
+const form = document.getElementById('loginForm');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('loginBtn');
+
+// ✅ Redirect if already logged in
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Vendora.getUser();
+    if (user) {
+        window.location.href = 'index.html';
+    }
+});
+
+// ✅ Handle login
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    msg.innerHTML = '';
+    btn.innerText = 'Logging in...';
+    btn.disabled = true;
+
+    const { error } = await Vendora.login(email, password);
+
+    if (error) {
+        msg.innerHTML = `<p class="error-msg">${error.message}</p>`;
+        btn.innerText = 'Login';
+        btn.disabled = false;
+    } else {
+        msg.innerHTML = `<p class="success-msg">Login successful! Redirecting...</p>`;
+
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 800);
+    }
+});
+</script>
+
+</body>
+</html>

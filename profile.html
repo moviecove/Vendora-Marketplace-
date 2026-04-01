@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | Vendora</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <div class="card" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+        <h2>My Profile</h2>
+        <div id="profile-details" class="mt-2"></div>
+    </div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+async function loadProfile() {
+
+    const user = await Vendora.getUser();
+
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const details = document.getElementById('profile-details');
+
+    // 🔥 GET PROFILE FROM TABLE
+    const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+    if (error || !profile) {
+        details.innerHTML = `<p>Profile not found</p>`;
+        return;
+    }
+
+    // 🔥 GET EARNINGS IF SELLER
+    let earningsHTML = '';
+
+    if (profile.role === 'seller') {
+
+        const { data: sales } = await supabaseClient
+            .from('order_items')
+            .select('price')
+            .eq('seller_id', user.id);
+
+        const total = sales?.reduce((sum, item) => sum + item.price, 0) || 0;
+
+        earningsHTML = `
+            <p><strong>Total Earnings:</strong> ₦${total}</p>
+        `;
+    }
+
+    details.innerHTML = `
+        <p><strong>Name:</strong> ${profile.full_name || 'N/A'}</p>
+        <p><strong>Email:</strong> ${profile.email}</p>
+        <p><strong>Role:</strong> ${profile.role.toUpperCase()}</p>
+        <p><strong>Verified Seller:</strong> ${profile.verified ? 'Yes ✅' : 'No ❌'}</p>
+        <p><strong>Member Since:</strong> ${new Date(profile.created_at).toLocaleDateString()}</p>
+
+        ${earningsHTML}
+
+        <a href="orders.html" class="btn btn-primary mt-2">View Orders</a>
+        <a href="settings.html" class="btn btn-secondary mt-2">Edit Settings</a>
+    `;
+}
+
+loadProfile();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Product | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+    <nav><a href="index.html" class="logo">Vendora</a></nav>
+</header>
+
+<main class="dashboard-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <ul class="sidebar-nav">
+            <li><a href="seller-dashboard.html">Dashboard</a></li>
+            <li><a href="add-product.html" class="active">Add Product</a></li>
+            <li><a href="my-products.html">My Products</a></li>
+            <li><a href="index.html">View Shop</a></li>
+        </ul>
+    </aside>
+
+    <!-- CONTENT -->
+    <section class="dashboard-content">
+        <div class="auth-form" style="margin: 0; max-width: 100%;">
+            <h2>Add New Product</h2>
+
+            <div id="msg"></div>
+
+            <form id="productForm">
+
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="title" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="category">
+                        <option>Electronics</option>
+                        <option>Fashion</option>
+                        <option>Home</option>
+                        <option>Beauty</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Price (NGN)</label>
+                    <input type="number" id="price" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="desc" rows="4"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Product Images (Max 5)</label>
+                    <input type="file" id="images" accept="image/*" multiple required>
+                </div>
+
+                <button id="submitBtn" type="submit" class="btn btn-primary btn-full">
+                    Publish Product
+                </button>
+
+            </form>
+        </div>
+    </section>
+
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+const form = document.getElementById('productForm');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('submitBtn');
+
+// ==============================
+// CHECK SELLER ACCESS
+// ==============================
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Vendora.getUser();
+
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+    if (!profile || profile.role !== 'seller' || !profile.verified) {
+        window.location.href = 'become-seller.html';
+    }
+});
+
+// ==============================
+// HANDLE SUBMIT
+// ==============================
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const user = await Vendora.getUser();
+    const files = document.getElementById('images').files;
+
+    if (files.length > 5) {
+        msg.innerHTML = `<p class="error-msg">Max 5 images allowed</p>`;
+        return;
+    }
+
+    btn.innerText = 'Uploading...';
+    btn.disabled = true;
+
+    let imageUrls = [];
+
+    // ==============================
+    // UPLOAD ALL IMAGES
+    // ==============================
+    for (let file of files) {
+
+        // Validate type
+        if (!file.type.startsWith('image/')) {
+            msg.innerHTML = `<p class="error-msg">Only images allowed</p>`;
+            btn.disabled = false;
+            return;
+        }
+
+        const { url, error } = await Vendora.uploadFile(
+            'product-images',
+            `${user.id}_${Date.now()}_${file.name}`,
+            file
+        );
+
+        if (error) {
+            msg.innerHTML = `<p class="error-msg">${error.message}</p>`;
+            btn.disabled = false;
+            return;
+        }
+
+        imageUrls.push(url);
+    }
+
+    // ==============================
+    // SAVE PRODUCT
+    // ==============================
+    const { error: dbError } = await Vendora.addProduct({
+        title: document.getElementById('title').value.trim(),
+        price: parseFloat(document.getElementById('price').value),
+        description: document.getElementById('desc').value.trim(),
+        category: document.getElementById('category').value,
+        image_url: imageUrls[0], // main image
+        images: imageUrls, // all images
+        seller_id: user.id
+    });
+
+    if (dbError) {
+        msg.innerHTML = `<p class="error-msg">${dbError.message}</p>`;
+        btn.disabled = false;
+        btn.innerText = 'Publish Product';
+    } else {
+        window.location.href = 'my-products.html';
+    }
+});
+</script>
+
+</body>
+</html>

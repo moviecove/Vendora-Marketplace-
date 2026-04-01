@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Details | Vendora</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main id="product-container">
+    <p>Loading product...</p>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+let currentUser;
+let currentImages = [];
+let currentIndex = 0;
+
+// ================= INIT =================
+document.addEventListener('DOMContentLoaded', async () => {
+    currentUser = await Vendora.getUser();
+    loadProductDetails();
+});
+
+// ================= LOAD =================
+async function loadProductDetails() {
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+
+    const container = document.getElementById('product-container');
+
+    if (!id) {
+        container.innerHTML = '<h2>Product not found</h2>';
+        return;
+    }
+
+    const { data: product, error } = await supabaseClient
+        .from('products')
+        .select(`
+            *,
+            profiles (
+                full_name,
+                phone
+            )
+        `)
+        .eq('id', id)
+        .single();
+
+    if (error || !product) {
+        container.innerHTML = '<h2>Error loading product</h2>';
+        return;
+    }
+
+    // 🔥 HANDLE IMAGES
+    currentImages = product.images || [product.image_url];
+
+    container.innerHTML = `
+        <div class="product-detail">
+
+            <!-- IMAGE SLIDER -->
+            <div class="slider">
+
+                <img id="mainImage" src="${currentImages[0]}" class="main-img">
+
+                <div class="slider-controls">
+                    <button onclick="prevImage()">⬅</button>
+                    <button onclick="nextImage()">➡</button>
+                </div>
+
+                <div class="thumbs">
+                    ${currentImages.map((img, i) => `
+                        <img src="${img}" onclick="setImage(${i})">
+                    `).join('')}
+                </div>
+
+            </div>
+
+            <!-- DETAILS -->
+            <div class="details">
+                <h1>${product.title}</h1>
+
+                <p class="price">₦${product.price}</p>
+
+                <p class="desc">${product.description || 'No description available'}</p>
+
+                <div class="actions">
+                    <button onclick="addToCart('${product.id}')" class="btn btn-primary">
+                        Add to Cart
+                    </button>
+
+                    <button onclick="addToWishlist('${product.id}')" class="btn btn-secondary">
+                        ❤️ Wishlist
+                    </button>
+                </div>
+
+                <!-- SELLER -->
+                <div class="seller-box">
+                    <h3>Seller Info</h3>
+                    <p>${product.profiles?.full_name || 'Unknown Seller'}</p>
+                    <p>${product.profiles?.phone || 'No phone provided'}</p>
+
+                    <a href="messages.html?to=${product.seller_id}"
+                       class="btn btn-secondary">
+                        Message Seller
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    `;
+}
+
+// ================= SLIDER =================
+function setImage(i) {
+    currentIndex = i;
+    document.getElementById('mainImage').src = currentImages[i];
+}
+
+function nextImage() {
+    currentIndex = (currentIndex + 1) % currentImages.length;
+    setImage(currentIndex);
+}
+
+function prevImage() {
+    currentIndex = (currentIndex - 1 + currentImages.length) % currentImages.length;
+    setImage(currentIndex);
+}
+
+// ================= CART =================
+async function addToCart(productId) {
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('cart')
+        .insert({
+            user_id: currentUser.id,
+            product_id: productId,
+            quantity: 1
+        });
+
+    if (error) alert(error.message);
+    else alert('Added to cart 🛒');
+}
+
+// ================= WISHLIST =================
+async function addToWishlist(productId) {
+
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('wishlist')
+        .insert({
+            user_id: currentUser.id,
+            product_id: productId
+        });
+
+    if (error) alert('Already in wishlist');
+    else alert('Added to wishlist ❤️');
+}
+</script>
+
+</body>
+</html>

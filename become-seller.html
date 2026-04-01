@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Become a Seller | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <div class="auth-form" style="max-width: 600px;">
+        <h2>Seller Verification</h2>
+        <p>Submit your details. Admin will review your application.</p>
+
+        <div id="msg"></div>
+
+        <form id="verifyForm">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="phone" required>
+            </div>
+
+            <div class="form-group">
+                <label>Gov Issued ID</label>
+                <select id="idType">
+                    <option value="NIN">NIN</option>
+                    <option value="BVN">BVN</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>ID Number</label>
+                <input type="text" id="idNumber" required>
+            </div>
+
+            <div class="form-group">
+                <label>Selfie with ID</label>
+                <input type="file" id="selfie" accept="image/*" required>
+            </div>
+
+            <button id="submitBtn" type="submit" class="btn btn-primary btn-full">
+                Submit Application
+            </button>
+        </form>
+    </div>
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+const form = document.getElementById('verifyForm');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('submitBtn');
+
+// ==============================
+// CHECK USER + STATUS
+// ==============================
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Vendora.getUser();
+
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Check existing verification
+    const { data } = await Vendora.getVerificationStatus(user.id);
+
+    if (data) {
+        showStatus(data.status);
+    }
+});
+
+// ==============================
+// SHOW STATUS UI
+// ==============================
+function showStatus(status) {
+    let text = '';
+
+    if (status === 'pending') {
+        text = 'Your verification is pending approval.';
+    } else if (status === 'approved') {
+        text = 'You are now a verified seller 🎉';
+    } else if (status === 'rejected') {
+        text = 'Your request was rejected. You may contact support.';
+    }
+
+    document.querySelector('.auth-form').innerHTML = `
+        <div class="text-center">
+            <h2>Verification Status</h2>
+            <p><strong>${status.toUpperCase()}</strong></p>
+            <p>${text}</p>
+            <a href="index.html" class="btn btn-primary" style="margin-top:1rem;">
+                Back Home
+            </a>
+        </div>
+    `;
+}
+
+// ==============================
+// SUBMIT FORM
+// ==============================
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const user = await Vendora.getUser();
+    if (!user) return;
+
+    const phone = document.getElementById('phone').value.trim();
+    const idType = document.getElementById('idType').value;
+    const idNumber = document.getElementById('idNumber').value.trim();
+    const file = document.getElementById('selfie').files[0];
+
+    msg.innerHTML = '';
+    btn.innerText = 'Submitting...';
+    btn.disabled = true;
+
+    // ==============================
+    // Upload selfie
+    // ==============================
+    const { url, error: uploadError } = await Vendora.uploadFile(
+        'verifications',
+        `${user.id}_${Date.now()}`,
+        file
+    );
+
+    if (uploadError) {
+        msg.innerHTML = `<p class="error-msg">${uploadError.message}</p>`;
+        btn.disabled = false;
+        btn.innerText = 'Submit Application';
+        return;
+    }
+
+    // ==============================
+    // Save phone to profile
+    // ==============================
+    await supabaseClient
+        .from('profiles')
+        .update({ phone })
+        .eq('id', user.id);
+
+    // ==============================
+    // Submit verification
+    // ==============================
+    const payload = {
+        user_id: user.id,
+        selfie_url: url,
+        nin: idType === 'NIN' ? idNumber : null,
+        bvn: idType === 'BVN' ? idNumber : null
+    };
+
+    const { error } = await Vendora.submitVerification(payload);
+
+    if (error) {
+        msg.innerHTML = `<p class="error-msg">${error.message}</p>`;
+        btn.disabled = false;
+        btn.innerText = 'Submit Application';
+    } else {
+        showStatus('pending');
+    }
+});
+</script>
+
+</body>
+</html>

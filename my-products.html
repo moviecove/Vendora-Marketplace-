@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Products | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* ================= SLIDER ================= */
+        .slider {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+
+        .slider img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            display: none;
+        }
+
+        .slider img.active {
+            display: block;
+        }
+
+        .slider button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.5);
+            border: none;
+            color: white;
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .slider button:first-of-type {
+            left: 5px;
+        }
+
+        .slider button:last-of-type {
+            right: 5px;
+        }
+
+        .product-card {
+            background: #111;
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main class="dashboard-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <ul class="sidebar-nav">
+            <li><a href="seller-dashboard.html">Dashboard</a></li>
+            <li><a href="add-product.html">Add Product</a></li>
+            <li><a href="my-products.html" style="font-weight:bold;">My Products</a></li>
+        </ul>
+    </aside>
+
+    <!-- CONTENT -->
+    <section>
+        <h2>My Products</h2>
+        <div id="msg"></div>
+        <div id="my-products-grid" class="product-grid"></div>
+    </section>
+
+</main>
+
+<script src="supabase.js"></script>
+
+<script>
+const grid = document.getElementById('my-products-grid');
+
+// ================= INIT =================
+document.addEventListener('DOMContentLoaded', async () => {
+
+    const user = await Vendora.getUser();
+
+    if (!user) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+    if (!profile || profile.role !== 'seller' || !profile.verified) {
+        window.location.href = 'become-seller.html';
+        return;
+    }
+
+    loadProducts(user.id);
+});
+
+// ================= LOAD PRODUCTS =================
+async function loadProducts(userId) {
+
+    grid.innerHTML = `<p>Loading...</p>`;
+
+    const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('seller_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        grid.innerHTML = `<p>${error.message}</p>`;
+        return;
+    }
+
+    if (!data.length) {
+        grid.innerHTML = `<p>No products yet</p>`;
+        return;
+    }
+
+    grid.innerHTML = data.map(product => {
+
+        let images = product.images?.length
+            ? product.images
+            : [product.image_url || 'https://via.placeholder.com/300'];
+
+        return `
+        <div class="product-card">
+
+            <div class="slider" id="slider-${product.id}">
+                ${images.map((img, i) => `
+                    <img src="${img}" class="slide ${i === 0 ? 'active' : ''}">
+                `).join('')}
+
+                ${images.length > 1 ? `
+                    <button onclick="prevSlide('${product.id}')">‹</button>
+                    <button onclick="nextSlide('${product.id}')">›</button>
+                ` : ''}
+            </div>
+
+            <div class="product-info">
+                <h3>${product.title}</h3>
+                <p>₦${product.price}</p>
+            </div>
+
+            <div class="product-actions">
+                <button onclick="editProduct('${product.id}')" class="btn btn-secondary">
+                    Edit
+                </button>
+
+                <button onclick="deleteProduct('${product.id}')" class="btn btn-danger">
+                    Delete
+                </button>
+            </div>
+
+        </div>
+        `;
+    }).join('');
+}
+
+// ================= SLIDER =================
+function nextSlide(id) {
+    const slides = document.querySelectorAll(`#slider-${id} .slide`);
+    let index = [...slides].findIndex(s => s.classList.contains('active'));
+
+    slides[index].classList.remove('active');
+    slides[(index + 1) % slides.length].classList.add('active');
+}
+
+function prevSlide(id) {
+    const slides = document.querySelectorAll(`#slider-${id} .slide`);
+    let index = [...slides].findIndex(s => s.classList.contains('active'));
+
+    slides[index].classList.remove('active');
+    slides[(index - 1 + slides.length) % slides.length].classList.add('active');
+}
+
+// ================= DELETE =================
+async function deleteProduct(id) {
+
+    if (!confirm('Delete this product?')) return;
+
+    const { error } = await supabaseClient
+        .from('products')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        alert(error.message);
+    } else {
+        location.reload();
+    }
+}
+
+// ================= EDIT =================
+function editProduct(id) {
+    window.location.href = `edit-product.html?id=${id}`;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign Up | Vendora</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+    <nav>
+        <a href="index.html" class="logo">Vendora</a>
+    </nav>
+</header>
+
+<main>
+    <div class="auth-form">
+        <h2>Create Account</h2>
+        <p style="margin-bottom: 2rem;">Join the best marketplace today.</p>
+
+        <div id="msg"></div>
+
+        <form id="signupForm">
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="fullName" required>
+            </div>
+
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="email" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" required minlength="6">
+            </div>
+
+            <button id="signupBtn" type="submit" class="btn btn-primary btn-full">
+                Sign Up
+            </button>
+        </form>
+
+        <p class="text-center" style="margin-top: 1.5rem;">
+            Already have an account? <a href="login.html">Login</a>
+        </p>
+    </div>
+</main>
+
+<!-- Scripts -->
+<script src="supabase.js"></script>
+
+<script>
+const form = document.getElementById('signupForm');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('signupBtn');
+
+// ✅ Redirect if already logged in
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = await Vendora.getUser();
+    if (user) {
+        window.location.href = 'index.html';
+    }
+});
+
+// ✅ Handle signup
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const fullName = document.getElementById('fullName').value.trim();
+
+    msg.innerHTML = '';
+    btn.innerText = 'Creating account...';
+    btn.disabled = true;
+
+    const { error } = await Vendora.signup(email, password, fullName);
+
+    if (error) {
+        msg.innerHTML = `<p class="error-msg">${error.message}</p>`;
+        btn.innerText = 'Sign Up';
+        btn.disabled = false;
+    } else {
+        msg.innerHTML = `
+            <p class="success-msg">
+                Account created successfully! Redirecting...
+            </p>
+        `;
+
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 1000);
+    }
+});
+</script>
+
+</body>
+</html>
